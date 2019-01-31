@@ -273,20 +273,13 @@ void movement()
     
         Shape *s = &g.box;
 
-        /**if(p->s.center.y > s->center.y + s->height &&
-           p->s.center.y < s->center.y + s->height &&
-           p->s.center.x > s->center.y + s->height &&
-           p->s.center.x < s->center.y + s->height){
-                    g.particle[i] = g.particle[--g.n];
-        }        
-        **/
-
         if(p->s.center.y < s->center.y + s->height &&
             p->s.center.y > s->center.y - s->height &&
             p->s.center.x > s->center.x - s->width  &&
             p->s.center.x < s->center.x + s->width){
-                //bounce
-                p->velocity.y =  -p->velocity.y;
+            
+			//bounce
+            p->velocity.y =  -p->velocity.y;
         }
 
 
@@ -296,7 +289,9 @@ void movement()
             //this code is optimized below
             //g.particle[i] = g.particle[g.n-1];
 		    //--g.n;
+			
             g.particle[i] = g.particle[--g.n];
+			
         }
 	}
 }
@@ -326,6 +321,7 @@ void render()
 	//Draw the particle here
 	glPushMatrix();
 	glColor3ub(150,160,220);
+	
     for(int i = 0; i < g.n; i++){
 	    Vec *c = &g.particle[i].s.center;
 	    w =
@@ -337,6 +333,7 @@ void render()
 		    glVertex2i(c->x+w, c->y-h);
 	    glEnd();
 }
+
 	glPopMatrix();
 	//
 	//Draw your 2D text here
