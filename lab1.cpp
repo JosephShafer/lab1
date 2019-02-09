@@ -40,8 +40,10 @@ using namespace std;
 #include <X11/keysym.h>
 #include <GL/glx.h>
 
+#include "fonts.h"
+
 const int MAX_PARTICLES = 2000;
-const float GRAVITY = -0.1;
+const float GRAVITY = -0.3;
 
 //some structures
 
@@ -62,13 +64,16 @@ struct Particle {
 
 class Global {
 public:
-	int xres, yres;
+	int xres, yres, xtransform, ytransform, num_boxes;
 	Shape box;
 	Particle particle[MAX_PARTICLES];
 	int n;
 	Global() {
 		xres = 800;
 		yres = 600;
+		xtransform = -60;
+		ytransform = 50;
+		num_boxes = 5;
 		//define a box shape
 		box.width = 100;
 		box.height = 10;
@@ -165,6 +170,7 @@ int main()
 		render();
 		x11.swapBuffers();
 	}
+	cleanup_fonts();
 	return 0;
 }
 
@@ -179,19 +185,21 @@ void init_opengl(void)
 	glOrtho(0, g.xres, 0, g.yres, -1, 1);
 	//Set the screen background color
 	glClearColor(0.1, 0.1, 0.1, 1.0);
+	initialize_fonts();
 }
 
 void makeParticle(int x, int y)
 {
 	if (g.n >= MAX_PARTICLES)
 		return;
-	cout << "makeParticle() " << x << " " << y << endl;
+	//comment only for testing
+	//cout << "makeParticle() " << x << " " << y << endl;
 	//position of particle
 	Particle *p = &g.particle[g.n];
 	p->s.center.x = x;
 	p->s.center.y = y;
-	p->velocity.y = -4.0;
-	p->velocity.x =  1.0;
+	p->velocity.y = (float(rand()) / float(RAND_MAX)) * -1.5f;
+	p->velocity.x = (float(rand()) / float(RAND_MAX)) * 10.2f; 
 	++g.n;
 }
 
@@ -206,10 +214,10 @@ void check_mouse(XEvent *e)
 		//This is not a mouse event that we care about.
 		return;
 	}
-	//
+
 	if (e->type == ButtonRelease) {
-		return;
 	}
+	
 	if (e->type == ButtonPress) {
 		if (e->xbutton.button==1) {
 			//Left button was pressed
@@ -217,8 +225,11 @@ void check_mouse(XEvent *e)
 			makeParticle(e->xbutton.x, y);
 			return;
 		}
-		if (e->xbutton.button==3) {
+
+		while (e->xbutton.button==3 && e->type != ButtonRelease) {
 			//Right button was pressed
+			int y = g.yres - e->xbutton.y;
+			makeParticle(e->xbutton.x, y);
 			return;
 		}
 	}
@@ -227,12 +238,9 @@ void check_mouse(XEvent *e)
 		if (savex != e->xbutton.x || savey != e->xbutton.y) {
 			savex = e->xbutton.x;
 			savey = e->xbutton.y;
-          
-        int y = g.yres - e->xbutton.y;
+			int y = g.yres - e->xbutton.y;
 			makeParticle(e->xbutton.x, y);
 			return;
-        
-
 		}
 	}
 }
@@ -262,86 +270,134 @@ void movement()
 {
 	if (g.n <= 0)
 		return;
-    for(int i = 0; i < g.n; i++){
-	    Particle *p = &g.particle[i];
-	    p->s.center.x += p->velocity.x;
-	    p->s.center.y += p->velocity.y;
-        p->velocity.y += GRAVITY;
-    
-	    //check for collision with shapes...
-	    //Shape *s;
-    
-        Shape *s = &g.box;
+	for (int i = 0; i < g.n; i++) {
+		Particle *p = &g.particle[i];
+		p->s.center.x += p->velocity.x;
+		p->s.center.y += p->velocity.y;
+		p->velocity.y += GRAVITY;
+		
+		//check for collision with shapes...
+		//Shape *s;
+		
+		Shape *s = &g.box;
 
-        if(p->s.center.y < s->center.y + s->height &&
-            p->s.center.y > s->center.y - s->height &&
-            p->s.center.x > s->center.x - s->width  &&
-            p->s.center.x < s->center.x + s->width){
-            
+	/** this code is for one box, below code is new version for all boxes.
+		for (int i = 0; i < g.num_boxes; i++){ 
+		if(p->s.center.y < s->center.y + s->height &&
+			p->s.center.y > s->center.y - s->height &&
+			p->s.center.x > s->center.x - s->width  &&
+			p->s.center.x < s->center.x + s->width) {
 			//bounce
-            p->velocity.y =  -p->velocity.y;
-        }
+			if(p->velocity.y > 0.0){
+				p->velocity.y =  -p->velocity.y - 0.3;
+			}else{
+				p->velocity.y =  -p->velocity.y;
+				p->velocity.x += 0.2;
+			}
+		}
+	}
+	 **/
+
+	for (int i = 0; i < g.num_boxes; i++) {
+		int Xtranslate = i * g.xtransform;
+		int Ytranslate = i * g.ytransform;
+
+		if(p->s.center.y < s->center.y + s->height + Ytranslate &&
+			p->s.center.y > s->center.y - s->height + Ytranslate &&
+			p->s.center.x > s->center.x - s->width + Xtranslate  &&
+			p->s.center.x < s->center.x + s->width + Xtranslate) {
+			//bounce
+
+			p->velocity.y = ((-p->velocity.y) - 0.5);
+			
+			if (p->velocity.y <= 0.0) {
+				p->velocity.y = 0;
+			}
 
 
-	    //check for off-screen
-	    if (p->s.center.y < 0.0) {
-		    //cout << "off screen" << endl;
-            //this code is optimized below
-            //g.particle[i] = g.particle[g.n-1];
-		    //--g.n;
-			
-            g.particle[i] = g.particle[--g.n];
-			
-        }
+			if (p->velocity.x < 0.001) {
+				p->velocity.x += 10.0;
+			}
+		}
+	}
+
+		//check for off-screen
+		if (p->s.center.y < 0.0) {
+			//cout << "off screen" << endl;
+			//this code is optimized below
+			//g.particle[i] = g.particle[g.n-1];
+				//--g.n;
+			g.particle[i] = g.particle[--g.n];
+		}
 	}
 }
 
 void render()
 {
+	Rect r;
+	int num_boxes = 5;
+	
 	glClear(GL_COLOR_BUFFER_BIT);
 	//Draw shapes...
 	//
 	//draw a box
-	Shape *s;
-	glColor3ub(90,140,90);
-	s = &g.box;
-	glPushMatrix();
-	glTranslatef(s->center.x, s->center.y, s->center.z);
-	float w, h;
-	w = s->width;
-	h = s->height;
-	glBegin(GL_QUADS);
+
+	for (int i = 0; i < num_boxes; i++) {
+		Shape *s;
+		glColor3ub(90, 140, 90);
+		s = &g.box;
+
+		glPushMatrix();
+		glTranslatef(s->center.x + i * g.xtransform, s->center.y + i * g.ytransform, s->center.z);
+		float w, h;
+		w = s->width;
+		h = s->height;
+		glBegin(GL_QUADS);
 		glVertex2i(-w, -h);
-		glVertex2i(-w,  h);
-		glVertex2i( w,  h);
-		glVertex2i( w, -h);
-	glEnd();
-	glPopMatrix();
-	//
-	//Draw the particle here
-	glPushMatrix();
-	glColor3ub(150,160,220);
-	
-    for(int i = 0; i < g.n; i++){
-	    Vec *c = &g.particle[i].s.center;
-	    w =
-	    h = 2;
-	    glBegin(GL_QUADS);
-		    glVertex2i(c->x-w, c->y-h);
-		    glVertex2i(c->x-w, c->y+h);
-		    glVertex2i(c->x+w, c->y+h);
-		    glVertex2i(c->x+w, c->y-h);
-	    glEnd();
+		glVertex2i(-w, h);
+		glVertex2i(w, h);
+		glVertex2i(w, -h);
+		glEnd();
+		glPopMatrix();
+		//
+		//Draw the particle here
+		glPushMatrix();
+		glColor3ub(rand(), rand() % 2, rand());
+		for (int i = 0; i < g.n; i++) {
+			Vec *c = &g.particle[i].s.center;
+			w =
+				h = 2;
+			glBegin(GL_QUADS);
+			glVertex2i(c->x - w, c->y - h);
+			glVertex2i(c->x - w, c->y + h);
+			glVertex2i(c->x + w, c->y + h);
+			glVertex2i(c->x + w, c->y - h);
+			glEnd();
+		}
+		glPopMatrix();
+		//
+		//Draw your 2D text here
+		glEnable(GL_TEXTURE_2D);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		unsigned int c = 0x00ffff44;
+		r.bot = (s->center.y - 1) + (g.ytransform * i);
+		r.left = s->center.x + (g.xtransform * i);
+		r.center = 0;
+		if (i == 4)
+		ggprint8b(&r, 16, c, "Requirements");
+		if (i == 3)
+		ggprint8b(&r, 16, c, "Design");
+		if (i == 2)
+		ggprint8b(&r, 16, c, "Coding");
+		if (i == 1)
+		ggprint8b(&r, 16, c, "Implementation");
+		if (i == 0)
+		ggprint8b(&r, 16, c, "Maintenance");
+	}
 }
 
-	glPopMatrix();
-	//
-	//Draw your 2D text here
 
-
-
-
-}
 
 
 
